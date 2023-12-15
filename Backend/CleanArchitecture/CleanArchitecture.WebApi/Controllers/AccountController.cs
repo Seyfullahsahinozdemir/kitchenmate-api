@@ -1,0 +1,87 @@
+﻿using CleanArchitecture.Core.DTOs.Account;
+using CleanArchitecture.Core.Interfaces;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
+using CleanArchitecture.Core.Wrappers;
+using Microsoft.AspNetCore.Authorization;
+
+namespace CleanArchitecture.WebApi.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class AccountController : ControllerBase
+    {
+        private readonly IAccountService _accountService;
+        public AccountController(IAccountService accountService)
+        {
+            _accountService = accountService;
+        }
+        [HttpPost("authenticate")]
+        public async Task<IActionResult> AuthenticateAsync(AuthenticationRequest request)
+        {
+            return Ok(await _accountService.AuthenticateAsync(request, GenerateIPAddress()));
+        }
+
+        [HttpPost("register")]
+        public async Task<IActionResult> RegisterAsync(RegisterRequest request)
+        {
+            var origin = Request.Headers["origin"];
+            return Ok(await _accountService.RegisterAsync(request, origin));
+        }
+        [HttpGet("confirm-email")]
+        public async Task<IActionResult> ConfirmEmailAsync([FromQuery] string userId, [FromQuery] string code)
+        {
+            var origin = Request.Headers["origin"];
+            return Ok(await _accountService.ConfirmEmailAsync(userId, code));
+        }
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest model)
+        {
+            await _accountService.ForgotPassword(model, Request.Headers["origin"]);
+            return Ok();
+        }
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword(ResetPasswordRequest model)
+        {
+
+            return Ok(await _accountService.ResetPassword(model));
+        }
+        private string GenerateIPAddress()
+        {
+            if (Request.Headers.ContainsKey("X-Forwarded-For"))
+                return Request.Headers["X-Forwarded-For"];
+            else
+                return HttpContext.Connection.RemoteIpAddress.MapToIPv4().ToString();
+        }
+
+        [HttpPost("roles/{userId}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> SetUserRoles(string userId, [FromQuery]string role)
+        {
+            return Ok(await _accountService.SetRoles(userId, role));
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetAllAccounts()
+        {
+            return Ok(await _accountService.GetAllAccountsAsync());
+        }
+
+        [HttpPut("update-activate/{id}")]
+        //[Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteUser(string id)
+        {
+            await _accountService.ChangeActivateUser(id);
+            return Ok();
+        }
+
+        [HttpPut]
+        public async Task<IActionResult> UpdateUser(UpdateRequest request)
+        {
+            await _accountService.UpdateUser(request.Id,request.FirstName,request.LastName, request.Email, request.Role);
+            return Ok();
+        }
+    }
+}
